@@ -1,0 +1,47 @@
+# Provider binaries and module cache
+.terraform/
+.terraform.tfstate.lock.info
+
+# .terraform.lock.hcl is deliberately NOT ignored for the examples: they are root modules,
+# and the lock is what makes `terraform init` reproducible for the next person.
+# A shared module is not a root module, so its lock file only records whatever the last
+# person to run `init` there happened to have installed. It never belongs in git.
+modules/*/.terraform.lock.hcl
+
+# Shared caches used by the Makefile targets
+.terraform-cache/
+.go-cache/
+
+# State holds every sensitive value the resources produced, in clear text
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Real values: account IDs, bucket names and certificate ARNs identify an account
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+backend.hcl
+!backend.hcl.example
+
+# Saved plans contain the same values as state
+*.tfplan
+plan.out
+
+# Credentials
+*.pem
+credentials
+.env
+
+# Tooling
+.tflint.d/
+.checkov.baseline
+crash.log
+crash.*.log
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
