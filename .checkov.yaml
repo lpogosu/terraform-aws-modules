@@ -1,0 +1,32 @@
+directory:
+  - .
+
+framework:
+  - terraform
+
+# Modules are reached through the examples that call them, so every finding is produced
+# against the values the examples actually pass rather than against module defaults.
+download-external-modules: false
+evaluate-variables: true
+
+compact: true
+quiet: true
+output:
+  - cli
+
+skip-path:
+  - .*/\.terraform/.*
+  - ^test/.*
+
+# Exceptions. Each one is a decision with a reason, not a way to make the pipeline green.
+# The narrow ones live next to the resource they apply to as `checkov:skip` comments; only
+# checks that are wrong everywhere in this repository are listed here.
+skip-check:
+  # CKV_AWS_18, CKV_AWS_144, CKV2_AWS_62 - access logging, cross-region replication and
+  # event notifications on every bucket. All three are properties of a specific bucket's
+  # role, and this library builds two kinds: a CloudFront origin, whose access log is the
+  # CloudFront log, and the CloudFront log bucket itself. Turning them on for a log bucket
+  # produces a bucket that logs its own log writes.
+  - CKV_AWS_18
+  - CKV_AWS_144
+  - CKV2_AWS_62
