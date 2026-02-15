@@ -1,0 +1,29 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is git-ignored.
+
+region       = "eu-central-1"
+cluster_name = "platform"
+
+cidr_block = "10.30.0.0/16"
+azs        = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
+
+kubernetes_version = "1.31"
+
+# One NAT gateway per zone. See the cost comparison in the root README before changing this.
+single_nat_gateway = false
+
+# Empty list keeps the Kubernetes API private-only, reachable through a bastion or VPN.
+# To expose it, list the office and runner ranges - never 0.0.0.0/0.
+api_access_cidrs = []
+
+workers_min = 2
+workers_max = 10
+
+ci_repository           = "lpogosu/terraform-aws-modules"
+deploy_namespaces       = ["default", "payments"]
+ci_create_oidc_provider = true
+
+tags = {
+  managed-by = "terraform"
+  example    = "eks-cluster"
+  env        = "staging"
+}
