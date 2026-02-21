@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is git-ignored: it ends up holding
+# values that identify a real account.
+
+region = "eu-central-1"
+name   = "sandbox"
+
+cidr_block = "10.20.0.0/16"
+azs        = ["eu-central-1a", "eu-central-1b"]
+
+# One NAT gateway for the whole VPC. Correct for a sandbox, wrong for production - see
+# "Один NAT-шлюз или по одному на зону" in the root README.
+single_nat_gateway = true
+
+tags = {
+  managed-by = "terraform"
+  example    = "minimal"
+  env        = "sandbox"
+}
