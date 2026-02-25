@@ -1,0 +1,29 @@
+# Copy to terraform.tfvars and adjust. terraform.tfvars is git-ignored.
+
+region = "eu-central-1"
+name   = "shop"
+
+cidr_block = "10.40.0.0/16"
+azs        = ["eu-central-1a", "eu-central-1b"]
+
+# S3 bucket names are global. Pick something nobody else has taken.
+bucket_name = "example-shop-frontend-0000"
+
+# Leave aliases empty and acm_certificate_arn null to serve on the *.cloudfront.net name.
+# The certificate must live in us-east-1 whatever region the rest of the stack is in.
+aliases             = []
+acm_certificate_arn = null
+# acm_certificate_arn = "arn:aws:acm:us-east-1:111122223333:certificate/00000000-1111-2222-3333-444444444444"
+
+engine_version = "16"
+instance_class = "db.t4g.medium"
+multi_az       = true
+
+# Set to false before `terraform destroy`, and only then.
+deletion_protection = true
+
+tags = {
+  managed-by = "terraform"
+  example    = "web-app"
+  env        = "production"
+}
