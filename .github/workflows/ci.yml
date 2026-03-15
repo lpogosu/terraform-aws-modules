@@ -1,0 +1,158 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TERRAFORM_VERSION: "1.9.8"
+  TFLINT_VERSION: "v0.60.0"
+  TERRAFORM_DOCS_VERSION: "0.20.0"
+  CHECKOV_VERSION: "3.2.334"
+  GO_VERSION: "1.23"
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive -diff
+
+  validate:
+    name: validate (${{ matrix.dir }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - modules/network
+          - modules/eks
+          - modules/rds
+          - modules/s3-cloudfront
+          - modules/iam-github-oidc
+          - examples/minimal
+          - examples/eks-cluster
+          - examples/web-app
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: hashicorp/setup-terraform@v3.1.2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      # One shared plugin cache instead of a fresh ~700 MB AWS provider per matrix leg.
+      - name: Cache providers
+        uses: actions/cache@v4.2.0
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: tf-plugins-${{ runner.os }}-${{ env.TERRAFORM_VERSION }}-${{ hashFiles('**/versions.tf') }}
+          restore-keys: tf-plugins-${{ runner.os }}-${{ env.TERRAFORM_VERSION }}-
+
+      - name: terraform init
+        working-directory: ${{ matrix.dir }}
+        run: |
+          mkdir -p ~/.terraform.d/plugin-cache
+          terraform init -backend=false -input=false -no-color
+        env:
+          TF_PLUGIN_CACHE_DIR: ~/.terraform.d/plugin-cache
+          TF_IN_AUTOMATION: "1"
+
+      - name: terraform validate
+        working-directory: ${{ matrix.dir }}
+        run: terraform validate -no-color
+
+  tflint:
+    name: tflint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: terraform-linters/setup-tflint@v4.1.0
+        with:
+          tflint_version: ${{ env.TFLINT_VERSION }}
+
+      # The AWS ruleset is fetched from the GitHub API; without a token the anonymous
+      # rate limit makes this job flaky rather than failing.
+      - name: tflint --init
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: tflint
+        run: tflint --recursive --config "${GITHUB_WORKSPACE}/.tflint.hcl" --format compact
+
+  checkov:
+    name: checkov
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/setup-python@v5.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install checkov
+        run: pip install --no-cache-dir "checkov==${CHECKOV_VERSION}"
+
+      - name: checkov
+        run: checkov --directory . --config-file .checkov.yaml
+
+  docs:
+    name: terraform-docs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Install terraform-docs
+        run: |
+          curl -sSLo /tmp/terraform-docs.tar.gz \
+            "https://terraform-docs.io/dl/v${TERRAFORM_DOCS_VERSION}/terraform-docs-v${TERRAFORM_DOCS_VERSION}-linux-amd64.tar.gz"
+          tar -xzf /tmp/terraform-docs.tar.gz -C /tmp terraform-docs
+          sudo install -m 0755 /tmp/terraform-docs /usr/local/bin/terraform-docs
+
+      # --output-check fails instead of rewriting. A README that has drifted away from the
+      # variables is worse than no README, because people act on it.
+      - name: Check generated tables are current
+        run: |
+          for scope in modules examples; do
+            terraform-docs markdown table \
+              --config .terraform-docs.yml \
+              --recursive --recursive-include-main=false --recursive-path "$scope" \
+              --output-file README.md --output-check .
+          done
+
+  vet:
+    name: go vet (terratest)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - uses: actions/setup-go@v5.2.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: test/go.sum
+
+      # The tests themselves create real AWS resources and are run by hand against a
+      # sandbox account. `go vet` compiles the package, which is what catches a renamed
+      # output or a changed helper signature.
+      - name: go vet
+        working-directory: test
+        run: go vet ./...
